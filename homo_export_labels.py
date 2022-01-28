@@ -165,7 +165,7 @@ if __name__=='__main__':
     net.load_state_dict(torch.load(config['model']['pretrained_model']))
     net.to(device).eval()
 
-    batch_fnames,batch_imgs,batch_raw_imgs = [],[],[]
+    batch_fnames, batch_imgs, batch_raw_imgs = [], [], []
     for idx, fpath in tqdm(enumerate(image_list)):
         root_dir, fname = os.path.split(fpath)
         ##
@@ -177,7 +177,7 @@ if __name__=='__main__':
         batch_fnames.append(fname)
         batch_raw_imgs.append(img)
         ##
-        if len(batch_imgs)<1 and ((idx+1)!=len(image_list)):
+        if len(batch_imgs) < 1 and ((idx+1) != len(image_list)):
             continue
 
         batch_imgs = torch.cat(batch_imgs)

@@ -1,4 +1,4 @@
-#-*-coding:utf8-*-
+# -*-coding:utf8-*-
 import torch
 from torch.optim.lr_scheduler import StepLR
 import numpy as np
@@ -13,7 +13,7 @@ from model.magic_point import MagicPoint
 from model.superpoint_bn import SuperPointBNNet
 from solver.loss import loss_func
 
-#map magicleap weigt to our model
+#m ap magicleap weigt to our model
 model_dict_map= \
 {'conv3b.weight':'backbone.block3_2.0.weight',
  'conv4b.bias':'backbone.block4_2.0.bias',
@@ -51,14 +51,14 @@ def train_eval(model, dataloader, config):
             mean_loss = []
             for i, data in tqdm(enumerate(dataloader['train'])):
                 prob, desc, prob_warp, desc_warp = None, None, None, None
-                if config['model']['name']=='magicpoint' and config['data']['name']=='coco':
+                if config['model']['name'] == 'magicpoint' and config['data']['name'] == 'coco':
                     data['raw'] = data['warp']
                     data['warp'] = None
 
                 raw_outputs = model(data['raw'])
 
-                ## for superpoint
-                if config['model']['name']!='magicpoint':#train superpoint
+                # for superpoint
+                if config['model']['name'] != 'magicpoint':      # train superpoint
                     warp_outputs = model(data['warp'])
                     prob, desc, prob_warp, desc_warp = raw_outputs['det_info'], \
                                                        raw_outputs['desc_info'], \
@@ -134,8 +134,7 @@ def do_eval(model, dataloader, config, device):
     return mean_loss
 
 
-
-if __name__=='__main__':
+if __name__ == '__main__':
 
     torch.multiprocessing.set_start_method('spawn')
 
@@ -155,7 +154,7 @@ if __name__=='__main__':
 
     device = 'cuda:2' if torch.cuda.is_available() else 'cpu'
 
-    ##Make Dataloader
+    # Make Dataloader
     data_loaders = None
     if config['data']['name'] == 'coco':
         datasets = {k: COCODataset(config['data'], is_train=True if k == 'train' else False, device=device)
@@ -171,13 +170,13 @@ if __name__=='__main__':
                                             collate_fn=datasets['train'].batch_collator),
                         'test': DataLoader(datasets['test'], batch_size=config['solver']['test_batch_size'], shuffle=True,
                                            collate_fn=datasets['test'].batch_collator)}
-    ##Make model
+    # Make model
     if config['model']['name'] == 'superpoint':
         model = SuperPointBNNet(config['model'], device=device, using_bn=config['model']['using_bn'])
     elif config['model']['name'] == 'magicpoint':
         model = MagicPoint(config['model'], device=device)
 
-    ##Load Pretrained Model
+    # Load Pretrained Model
     if os.path.exists(config['model']['pretrained_model']):
         pre_model_dict = torch.load(config['model']['pretrained_model'])
         model_dict = model.state_dict()

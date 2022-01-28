@@ -37,6 +37,7 @@ def loss_func(config, data, prob, desc=None, prob_warp=None, desc_warp=None, dev
     print('debug: {:.3f}, {:.3f}, {:.3f}, {:.3f}'.format(a, b,c,a+b+c))
     return loss
 
+
 def detector_loss(keypoint_map, logits, valid_mask=None, grid_size=8, device='cpu'):
     """
     :param keypoint_map: [B,H,W]
@@ -46,12 +47,12 @@ def detector_loss(keypoint_map, logits, valid_mask=None, grid_size=8, device='cp
     :return:
     """
     # Convert the boolean labels to indices including the "no interest point" dustbin
-    labels = keypoint_map.unsqueeze(1).float()#to [B, 1, H, W]
-    labels = pixel_shuffle_inv(labels, grid_size) # to [B,64,H/8,W/8]
-    B,C,h,w = labels.shape#h=H/grid_size,w=W/grid_size
-    labels = torch.cat([2*labels, torch.ones([B,1,h,w],device=device)], dim=1)
+    labels = keypoint_map.unsqueeze(1).float()      # to [B, 1, H, W]
+    labels = pixel_shuffle_inv(labels, grid_size)   # to [B,64,H/8,W/8]
+    B, C, h, w = labels.shape                       # h = H/grid_size, w = W/grid_size
+    labels = torch.cat([2*labels, torch.ones([B, 1, h, w], device=device)], dim=1)
     # Add a small random matrix to randomly break ties in argmax
-    labels = torch.argmax(labels + torch.zeros(labels.shape,device=device).uniform_(0,0.1),dim=1)#B*65*Hc*Wc
+    labels = torch.argmax(labels + torch.zeros(labels.shape, device=device).uniform_(0, 0.1), dim=1)  # B*65*Hc*Wc
 
     # Mask the pixels if bordering artifacts appear
     valid_mask = torch.ones_like(keypoint_map) if valid_mask is None else valid_mask

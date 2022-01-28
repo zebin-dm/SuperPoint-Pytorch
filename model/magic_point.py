@@ -1,9 +1,8 @@
-#-*-coding:utf8-*-
+# -*-coding:utf8-*-
 import torch
 from solver.nms import box_nms
 from model.modules.cnn.vgg_backbone import VGGBackboneBN,VGGBackbone
 from model.modules.cnn.cnn_heads import DetectorHead
-
 
 
 class MagicPoint(torch.nn.Module):

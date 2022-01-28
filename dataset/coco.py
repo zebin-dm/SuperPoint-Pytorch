@@ -21,22 +21,21 @@ class COCODataset(torch.utils.data.Dataset):
         self.resize = tuple(config['resize'])
         self.photo_augmentor = PhotoAugmentor(config['augmentation']['photometric'])
         # load config
-        self.config = config #dict_update(getattr(self, 'default_config', {}), config)
+        self.config = config  # dict_update(getattr(self, 'default_config', {}), config)
         # get images
         if self.is_train:
             self.samples = self._init_data(config['image_train_path'], config['label_train_path'])
         else:
             self.samples = self._init_data(config['image_test_path'], config['label_test_path'])
 
-
     def _init_data(self, image_path, label_path=None):
         ##
-        if not isinstance(image_path,list):
+        if not isinstance(image_path, list):
             image_paths, label_paths = [image_path,], [label_path,]
         else:
             image_paths, label_paths = image_path, label_path
 
-        image_types = ['jpg','jpeg','bmp','png']
+        image_types = ['jpg', 'jpeg', 'bmp', 'png']
         samples = []
         for im_path, lb_path in zip(image_paths, label_paths):
             for it in image_types:
@@ -52,7 +51,6 @@ class COCODataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.samples)
-
 
     def __getitem__(self, idx):
         '''load raw data'''
@@ -137,7 +135,7 @@ class COCODataset(torch.utils.data.Dataset):
         return batch
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     import yaml
     import matplotlib.pyplot as plt
     from dataset.utils.photometric_augmentation import *

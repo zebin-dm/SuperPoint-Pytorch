@@ -75,7 +75,7 @@ class SyntheticShapes(Dataset):
         self.config = dict_update(getattr(self, 'default_config', {}), config)
         self.task = task if isinstance(task, (list, tuple)) else [task, ]
         self.photo_aug = PhotoAugmentor(config['augmentation']['photometric'])
-        #load data, if no data generate some
+        # load data, if no data generate some
         self.samples = self._init_dataset()
 
     def dump_primitive_data(self, primitive):
