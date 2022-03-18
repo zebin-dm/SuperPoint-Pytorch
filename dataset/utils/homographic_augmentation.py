@@ -79,10 +79,19 @@ def compute_valid_mask(image_shape, homographies, erosion_radius=0, device='cpu'
 
 def sample_homography(shape, config=None, device='cpu'):
 
-    default_config = {'perspective':True, 'scaling':True, 'rotation':True, 'translation':True,
-    'n_scales':5, 'n_angles':25, 'scaling_amplitude':0.2, 'perspective_amplitude_x':0.1,
-    'perspective_amplitude_y':0.1, 'patch_ratio':0.5, 'max_angle':pi / 2,
-    'allow_artifacts': False, 'translation_overflow': 0.}
+    default_config = {'perspective':True, 
+                      'scaling':True, 
+                      'rotation':True, 
+                      'translation':True,
+                      'n_scales':5, 
+                      'n_angles':25, 
+                      'scaling_amplitude':0.2, 
+                      'perspective_amplitude_x':0.1,
+                      'perspective_amplitude_y':0.1, 
+                      'patch_ratio':0.5, 
+                      'max_angle':pi / 2,
+                      'allow_artifacts': False, 
+                      'translation_overflow': 0.}
 
     #TODO: not tested
     if config is not None:
@@ -191,9 +200,9 @@ def ratio_preserving_resize(img, target_size):
     :param target_size: (h,w)
     :return:
     '''
-    scales = np.array((target_size[0]/img.shape[0], target_size[1]/img.shape[1]))##h_s,w_s
+    scales = np.array((target_size[0]/img.shape[0], target_size[1]/img.shape[1])) ##h_s,w_s
 
-    new_size = np.round(np.array(img.shape)*np.max(scales)).astype(np.int)#
+    new_size = np.round(np.array(img.shape)*np.max(scales)).astype(int)#
     temp_img = cv2.resize(img, tuple(new_size[::-1]))
     curr_h, curr_w = temp_img.shape
     target_h, target_w = target_size

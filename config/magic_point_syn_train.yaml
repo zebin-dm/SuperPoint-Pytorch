@@ -40,7 +40,7 @@ data:
             valid_border_margin: 2
 model:
     name: 'magicpoint'
-    using_bn: true
+    bb_name: "EfficientBBV2"       # "VGGBackboneBN", "VGGBackbone", "EfficientBB", "EfficientBBV2"
     pretrained_model: 'none'
     grid_size: 8
     backbone:
@@ -54,9 +54,11 @@ model:
     topk: -1
 solver:
     grid_size: 8
-    epoch: 20
+    epoch: 40
     base_lr: 0.001
-    train_batch_size: 64
-    test_batch_size: 64
-    save_dir: './export'
+    train_batch_size: 128
+    test_batch_size: 128
+    save_dir: './export_efficientv2'
     model_name: 'mg_syn'
+train:
+    device: "cuda:0"

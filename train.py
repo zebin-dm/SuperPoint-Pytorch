@@ -1,61 +1,78 @@
 # -*-coding:utf8-*-
-import torch
-from torch.optim.lr_scheduler import StepLR
-import numpy as np
 import os
-import yaml
 import argparse
-from tqdm import tqdm
+import torch
+import pprint
+from torch.optim import lr_scheduler
+import numpy as np
+import yaml
+
 from dataset.coco import COCODataset
 from dataset.synthetic_shapes import SyntheticShapes
 from torch.utils.data import DataLoader
-from model.magic_point import MagicPoint
+# from model.magic_point import MagicPoint
+# from model.magic_point_dm import MagicPoint
+from model.magic_point_v1 import MagicPoint
 from model.superpoint_bn import SuperPointBNNet
 from solver.loss import loss_func
 
 #m ap magicleap weigt to our model
-model_dict_map= \
-{'conv3b.weight':'backbone.block3_2.0.weight',
- 'conv4b.bias':'backbone.block4_2.0.bias',
- 'conv4b.weight':'backbone.block4_2.0.weight',
- 'conv1b.bias':'backbone.block1_2.0.bias',
- 'conv3a.bias':'backbone.block3_1.0.bias',
- 'conv1b.weight':'backbone.block1_2.0.weight',
- 'conv2b.weight':'backbone.block2_2.0.weight',
- 'convDa.bias':'descriptor_head.convDa.bias',
- 'conv1a.weight':'backbone.block1_1.0.weight',
- 'convDa.weight':'descriptor_head.convDa.weight',
- 'conv4a.bias':'backbone.block4_1.0.bias',
- 'conv2a.bias':'backbone.block2_1.0.bias',
- 'conv2a.weight':'backbone.block2_1.0.weight',
- 'convPb.weight':'detector_head.convPb.weight',
- 'convPa.bias':'detector_head.convPa.bias',
- 'convPa.weight':'detector_head.convPa.weight',
- 'conv2b.bias':'backbone.block2_2.0.bias',
- 'conv1a.bias':'backbone.block1_1.0.bias',
- 'convDb.weight':'descriptor_head.convDb.weight',
- 'conv3a.weight':'backbone.block3_1.0.weight',
- 'conv4a.weight':'backbone.block4_1.0.weight',
- 'convPb.bias':'detector_head.convPb.bias',
- 'convDb.bias':'descriptor_head.convDb.bias',
- 'conv3b.bias':'backbone.block3_2.0.bias'}
+# model_dict_map= \
+# {'conv3b.weight':'backbone.block3_2.0.weight',
+#  'conv4b.bias':'backbone.block4_2.0.bias',
+#  'conv4b.weight':'backbone.block4_2.0.weight',
+#  'conv1b.bias':'backbone.block1_2.0.bias',
+#  'conv3a.bias':'backbone.block3_1.0.bias',
+#  'conv1b.weight':'backbone.block1_2.0.weight',
+#  'conv2b.weight':'backbone.block2_2.0.weight',
+#  'convDa.bias':'descriptor_head.convDa.bias',
+#  'conv1a.weight':'backbone.block1_1.0.weight',
+#  'convDa.weight':'descriptor_head.convDa.weight',
+#  'conv4a.bias':'backbone.block4_1.0.bias',
+#  'conv2a.bias':'backbone.block2_1.0.bias',
+#  'conv2a.weight':'backbone.block2_1.0.weight',
+#  'convPb.weight':'detector_head.convPb.weight',
+#  'convPa.bias':'detector_head.convPa.bias',
+#  'convPa.weight':'detector_head.convPa.weight',
+#  'conv2b.bias':'backbone.block2_2.0.bias',
+#  'conv1a.bias':'backbone.block1_1.0.bias',
+#  'convDb.weight':'descriptor_head.convDb.weight',
+#  'conv3a.weight':'backbone.block3_1.0.weight',
+#  'conv4a.weight':'backbone.block4_1.0.weight',
+#  'convPb.bias':'detector_head.convPb.bias',
+#  'convDb.bias':'descriptor_head.convDb.bias',
+#  'conv3b.bias':'backbone.block3_2.0.bias'}
 
 
 def train_eval(model, dataloader, config):
-    optimizer = torch.optim.Adam(model.parameters(), lr=config['solver']['base_lr'])
-
+    # optimizer = torch.optim.Adam(model.parameters(), lr=config['solver']['base_lr'])
+    base_lr = config['solver']['base_lr'] * config['solver']["train_batch_size"]/64
+    weight_decay = 1e-4
+    momentum = 0.9
+    optimizer = torch.optim.AdamW(params=model.parameters(),
+                                  lr=base_lr, 
+                                  weight_decay=weight_decay, 
+                                  amsgrad=True)
+    # optimizer = torch.optim.SGD(params=model.parameters(),
+    #                             lr=base_lr,
+    #                             weight_decay=weight_decay,
+    #                             momentum=momentum)
+    milestones = [13, ]
+    gamma = 0.5
+    scheduler = lr_scheduler.MultiStepLR(optimizer=optimizer, milestones=milestones, gamma=gamma)
+    train_epoches = config['solver']['epoch']
     try:
         # start training
-        for epoch in range(config['solver']['epoch']):
+        for epoch in range(train_epoches):
             model.train()
             mean_loss = []
-            for i, data in tqdm(enumerate(dataloader['train'])):
+            for i, data in enumerate(dataloader['train']):
                 prob, desc, prob_warp, desc_warp = None, None, None, None
                 if config['model']['name'] == 'magicpoint' and config['data']['name'] == 'coco':
                     data['raw'] = data['warp']
                     data['warp'] = None
-
-                raw_outputs = model(data['raw'])
+                img_data = data['raw']["img"]
+                raw_outputs = model(img_data)
 
                 # for superpoint
                 if config['model']['name'] != 'magicpoint':      # train superpoint
@@ -65,7 +82,7 @@ def train_eval(model, dataloader, config):
                                                        warp_outputs['det_info'],\
                                                        warp_outputs['desc_info']
                 else:
-                    prob = raw_outputs #train magicpoint
+                    prob = raw_outputs # train magicpoint
 
                 ##loss
                 loss = loss_func(config['solver'], data, prob, desc,
@@ -77,25 +94,24 @@ def train_eval(model, dataloader, config):
                 loss.backward()
                 optimizer.step()
 
-                if (i%500==0):
-                    print('Epoch [{}/{}], Step [{}/{}], LR [{}], Loss: {:.3f}'
-                          .format(epoch, config['solver']['epoch'], i, len(dataloader['train']),
-                                  optimizer.state_dict()['param_groups'][0]['lr'], np.mean(mean_loss)))
+                if (i % 100 == 0 and i != 0):
+                    print("Epoch [{}/{}], Step [{}/{}], LR [{}], Loss: {:.3f}".format(
+                        epoch, train_epoches, i, len(dataloader['train']),
+                        optimizer.state_dict()['param_groups'][0]['lr'], np.mean(mean_loss)))
                     mean_loss = []
 
-                ##do evaluation
-                save_iter = int(0.5*len(dataloader['train']))#half epoch
-                if (i%save_iter==0 and i!=0) or (i+1)==len(dataloader['train']):
-                    model.eval()
-                    eval_loss = do_eval(model, dataloader['test'], config, device)
-                    model.train()
-
-                    save_path = os.path.join(config['solver']['save_dir'],
-                                             config['solver']['model_name'] + '_{}_{}.pth').format(epoch, round(eval_loss, 3))
-                    torch.save(model.state_dict(), save_path)
-                    print('Epoch [{}/{}], Step [{}/{}], Eval loss {:.3f}, Checkpoint saved to {}'
-                          .format(epoch, config['solver']['epoch'], i, len(dataloader['train']), eval_loss, save_path))
-                    mean_loss = []
+            scheduler.step()
+            ##do evaluation
+            if (epoch % 1 ==0):
+                model.eval()
+                eval_loss = do_eval(model, dataloader['test'], config, device)
+                save_path = os.path.join(config['solver']['save_dir'],
+                                         config['solver']['model_name'] + 
+                                         '_{:0>4d}_{}.pth'.format(epoch, round(eval_loss, 3)))
+                torch.save(model.state_dict(), save_path)
+                print('Epoch [{}/{}], Loss: {:.3f}, EvalLoss: {:.3f}, Checkpoint saved to {}'.format(
+                    epoch, train_epoches, np.mean(mean_loss), eval_loss, save_path))
+                mean_loss = []
 
     except KeyboardInterrupt:
         torch.save(model.state_dict(), "./export/key_interrupt_model.pth")
@@ -105,7 +121,7 @@ def do_eval(model, dataloader, config, device):
     mean_loss = []
     truncate_n = max(int(0.1 * len(dataloader)), 100)  # 0.1 of test dataset for eval
 
-    for ind, data in tqdm(enumerate(dataloader)):
+    for ind, data in enumerate(dataloader):
         if ind>truncate_n:
             break
         prob, desc, prob_warp, desc_warp = None, None, None, None
@@ -113,7 +129,8 @@ def do_eval(model, dataloader, config, device):
             data['raw'] = data['warp']
             data['warp'] = None
 
-        raw_outputs = model(data['raw'])
+        img_data = data['raw']["img"]
+        raw_outputs = model(img_data)
 
         if config['model']['name'] != 'magicpoint':
             warp_outputs = model(data['warp'])
@@ -152,7 +169,7 @@ if __name__ == '__main__':
     if not os.path.exists(config['solver']['save_dir']):
         os.makedirs(config['solver']['save_dir'])
 
-    device = 'cuda:2' if torch.cuda.is_available() else 'cpu'
+    device = torch.device("cuda:0")
 
     # Make Dataloader
     data_loaders = None
@@ -174,16 +191,18 @@ if __name__ == '__main__':
     if config['model']['name'] == 'superpoint':
         model = SuperPointBNNet(config['model'], device=device, using_bn=config['model']['using_bn'])
     elif config['model']['name'] == 'magicpoint':
-        model = MagicPoint(config['model'], device=device)
+        model = MagicPoint(config['model'])
 
     # Load Pretrained Model
     if os.path.exists(config['model']['pretrained_model']):
         pre_model_dict = torch.load(config['model']['pretrained_model'])
-        model_dict = model.state_dict()
-        for k,v in pre_model_dict.items():
-            if k in model_dict.keys() and v.shape==model_dict[k].shape:
-                model_dict[k] = v
-        model.load_state_dict(model_dict)
+        # model_dict = model.state_dict()
+        # for k,v in pre_model_dict.items():
+        #     if k in model_dict.keys() and v.shape==model_dict[k].shape:
+        #         model_dict[k] = v
+        # model.load_state_dict(model_dict)
+        model.load_state_dict(pre_model_dict)
     model.to(device)
+    pprint.pprint(config)
     train_eval(model, data_loaders, config)
     print('Done')

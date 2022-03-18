@@ -1,8 +1,8 @@
-import torch
 import cv2
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
+import torch
 from torch.utils.data import Dataset
 from utils.params import dict_update, parse_primitives
 from utils.keypoint_op import compute_keypoint_map
@@ -52,6 +52,7 @@ class SyntheticShapes(Dataset):
             },
         }
     }
+
     drawing_primitives = [
         'draw_lines',
         'draw_polygon',
@@ -116,7 +117,7 @@ class SyntheticShapes(Dataset):
         for primitive in primitives:
             primitive_dir = Path(self.config['data_dir'], primitive)
             if not primitive_dir.exists():
-                #try generate data
+                # try generate data
                 self.dump_primitive_data(primitive)
             # Gather filenames in all splits, optionally truncate
             truncate = self.config['truncate'].get(primitive, 1)
@@ -137,26 +138,30 @@ class SyntheticShapes(Dataset):
     def __getitem__(self, idx):
         img_path = self.samples[idx]['image']
         pts_path = self.samples[idx]['point']
-        #
-        img = cv2.imread(img_path,cv2.IMREAD_GRAYSCALE)#shape=(h,w)
+
+        # img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE) # shape=(h,w)
+        img_npy = cv2.imread(img_path)  # shape=(h, w, c)
+        img_tensor = torch.as_tensor(img_npy, device=self.device, dtype=torch.float32)
+        img_tensor = img_tensor.permute(2, 0, 1) # shape=(c, h, w)
+        hw_shape = img_tensor.shape[1:]
+
         pts = np.load(pts_path)  # attention: each point is a (y,x) formated vector
+        pts = torch.as_tensor(pts, dtype=torch.float32, device=self.device) # (n, 2)
 
-        img_tensor = torch.as_tensor(img, device=self.device, dtype=torch.float32)#HW
-        pts = torch.as_tensor(pts, dtype=torch.float32, device=self.device)#N2
-        kp_map = compute_keypoint_map(pts, img_tensor.shape, device=self.device)#HW
-        valid_mask = torch.ones_like(img_tensor)#HW
-        homography = torch.eye(3, device=self.device)#3,3
+        kp_map = compute_keypoint_map(pts, hw_shape, device=self.device) # (h, w)
+        # TODO: maybe neeed to modify in the future
+        valid_mask = torch.ones_like(kp_map)  # (h, w)
+        homography = torch.eye(3, device=self.device) # (3, 3)
 
-
-        data = {'raw':{'img':img_tensor,#H,W
-                       'kpts':pts,#N,2
-                       'kpts_map':kp_map,#H,W
-                       'mask':valid_mask,#H,W
+        data = {'raw': {'img': img_tensor, # (3, h, w)
+                        'kpts': pts,       # (n, 2)
+                        'kpts_map': kp_map,# (h, w)
+                        'mask': valid_mask,# (h, w)
                         },
-                'homography': homography}#3,3
+                'homography': homography}  # (3, 3)
 
 
-        if self.config['augmentation']['photometric']['enable']:#image augmentation
+        if self.config['augmentation']['photometric']['enable']: # image augmentation
             photo_img = data['raw']['img'].cpu().numpy().round().astype(np.uint8)
             photo_img = self.photo_aug(photo_img)
             data['raw']['img'] = torch.as_tensor(photo_img, device=self.device, dtype=torch.float32)
@@ -193,12 +198,11 @@ class SyntheticShapes(Dataset):
             batch['raw']['mask'].append(item['raw']['mask'])
             batch['homography'].append(item['homography'])
         ##
-        batch['raw']['img'] = torch.stack(batch['raw']['img']).unsqueeze(dim=1)#BCHW
-        batch['raw']['kpts_map'] = torch.stack(batch['raw']['kpts_map'])#BHW
-        batch['raw']['mask'] = torch.stack(batch['raw']['mask'])#BHW
-        batch['homography'] = torch.stack(batch['homography'])#BHW
+        batch['raw']['img'] = torch.stack(batch['raw']['img']).unsqueeze(dim=1)   # BCHW
+        batch['raw']['kpts_map'] = torch.stack(batch['raw']['kpts_map'])          # BHW
+        batch['raw']['mask'] = torch.stack(batch['raw']['mask'])                  # BHW
+        batch['homography'] = torch.stack(batch['homography'])                    # BHW
         return batch
-
 
 
 if __name__=="__main__":

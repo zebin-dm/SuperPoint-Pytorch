@@ -2,6 +2,7 @@
 import os
 import glob
 from copy import deepcopy
+import torch
 from torchvision import transforms
 from torch.utils.data import DataLoader
 from utils.params import dict_update
@@ -29,7 +30,6 @@ class COCODataset(torch.utils.data.Dataset):
             self.samples = self._init_data(config['image_test_path'], config['label_test_path'])
 
     def _init_data(self, image_path, label_path=None):
-        ##
         if not isinstance(image_path, list):
             image_paths, label_paths = [image_path,], [label_path,]
         else:
@@ -46,7 +46,6 @@ class COCODataset(torch.utils.data.Dataset):
                     temp_lb = [None,]*len(temp_im)
                 temp = [{'image':imp, 'label':lb} for imp, lb in zip(temp_im, temp_lb)]
                 samples += temp
-        ##
         return samples
 
     def __len__(self):
@@ -100,7 +99,7 @@ class COCODataset(torch.utils.data.Dataset):
         data['raw']['img'] = data['raw']['img']/255.
         data['warp']['img'] = data['warp']['img']/255.
 
-        return data#img:HW, kpts:N2, kpts_map:HW, valid_mask:HW, homography:HW
+        return data  #img:HW, kpts:N2, kpts_map:HW, valid_mask:HW, homography:HW
 
     def batch_collator(self, samples):
         """

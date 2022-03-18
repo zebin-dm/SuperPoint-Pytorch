@@ -6,10 +6,12 @@ def plot_imgs(imgs, titles=None, cmap='brg', ylabel='', normalize=False, ax=None
     n = len(imgs)
     if not isinstance(cmap, list):
         cmap = [cmap]*n
-    if ax is None:
-        _, ax = plt.subplots(1, n, figsize=(6*n, 6), dpi=dpi)
-        if n == 1:
-            ax = [ax]
+
+    # fig = plt.figure()
+    # ax = fig.add_subplot(2, 1, 1)
+    _, ax = plt.subplots(1, n, figsize=(6*n, 6), dpi=dpi)
+    if n == 1:
+        ax = [ax]
     else:
         if not isinstance(ax, list):
             ax = [ax]
@@ -27,8 +29,9 @@ def plot_imgs(imgs, titles=None, cmap='brg', ylabel='', normalize=False, ax=None
         for spine in ax[i].spines.values():  # remove frame
             spine.set_visible(False)
     ax[0].set_ylabel(ylabel)
-    plt.tight_layout()
-    plt.show()
+    # fig.savefig("000.png")
+    # plt.tight_layout()
+    # plt.show()
 
 
 

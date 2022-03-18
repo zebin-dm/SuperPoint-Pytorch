@@ -3,16 +3,15 @@
 
 import cv2
 import numpy as np
-import torch
-import imgaug.augmenters as iaa
-from numpy.random import uniform
-from numpy.random import randint
-import torchvision.transforms as transforms
+# import torch
+# import imgaug.augmenters as iaa
+# from numpy.random import uniform
+# from numpy.random import randint
+# import torchvision.transforms as transforms
 from PIL import Image
 
+
 class PhotoAugmentor:
-    '''
-    '''
 
     def __init__(self, config):
         self.config = config
@@ -165,13 +164,19 @@ if __name__=='__main__':
     from PIL import Image
     import matplotlib.pyplot as plt
     import yaml
-    img = Image.open('../../data/synthetic_shapes/draw_cube/images/training/0.png')
-    img = np.array(img)
-    print(type(img))
-    #
-    config_path = '../../configs/magic-point_shapes.yaml'
+    # img = Image.open('./data/synthetic_shapes/draw_cube/images/training/0.png')
+    # img = np.array(img)
+    img = cv2.imread('./data/synthetic_shapes/draw_cube/images/training/0.png')
+    img = img.permute()
+
+    config_path = './config/magic_point_syn_train.yaml'
     with open(config_path, 'r') as f:
-        config = yaml.load(f)
+        config = yaml.safe_load(f)
+    photo_aug = PhotoAugmentor(config["data"]['augmentation']['photometric'])
+    
+    aug_img = photo_aug(img)
+
+
 
 
 

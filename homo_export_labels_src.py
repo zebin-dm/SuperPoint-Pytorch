@@ -10,7 +10,8 @@ from utils.params import dict_update
 from solver.nms import box_nms
 from utils.tensor_op import erosion2d
 from dataset.utils.homographic_augmentation import sample_homography,ratio_preserving_resize
-from model.magic_point import MagicPoint
+# from model.magic_point import MagicPoint
+from model.magic_point_dm import MagicPoint
 
 
 homography_adaptation_default_config = {
@@ -181,6 +182,7 @@ if __name__=='__main__':
         batch_imgs = torch.cat(batch_imgs)
         outputs = homography_adaptation(net, batch_imgs, config['data']['homography_adaptation'], device=device)
         prob = outputs['prob']
+        print(prob)
         ##nms or threshold filter
         if config['model']['nms']:
             prob = [box_nms(p.unsqueeze(dim=0),#to 1HW
@@ -199,14 +201,13 @@ if __name__=='__main__':
             np.save(os.path.join(config['data']['dst_label_path'], fname+'.npy'), pt)
             print('{}, {}'.format(os.path.join(config['data']['dst_label_path'], fname+'.npy'), len(pt)))
 
-        # ## debug
-        # for img, pts in zip(batch_raw_imgs,points):
-        #     debug_img = cv2.merge([img, img, img])
-        #     for pt in pts:
-        #         cv2.circle(debug_img, (int(pt[1]),int(pt[0])), 1, (0,255,0), thickness=-1)
-        #     plt.imshow(debug_img)
-        #     plt.show()
-        # if idx>=2:
-        #     break
+        ## debug
+        for img, pts in zip(batch_raw_imgs,points):
+            debug_img = cv2.merge([img, img, img])
+            for pt in pts:
+                cv2.circle(debug_img, (int(pt[1]),int(pt[0])), 1, (0,255,0), thickness=-1)
+            cv2.imwrite(os.path.join("./debug", "src" + fname), debug_img)
+        if idx>=10:
+            break
         batch_fnames,batch_imgs,batch_raw_imgs = [],[],[]
     print('Done')
