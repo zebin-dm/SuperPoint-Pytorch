@@ -203,7 +203,7 @@ def create_meshgrid(
         ys = (ys / (height - 1) - 0.5) * 2
     # generate grid by stacking coordinates
     base_grid: torch.Tensor = torch.stack(
-        torch.meshgrid([xs, ys])).transpose(1, 2)  # 2xHxW
+        torch.meshgrid([xs, ys]), indexing='ij').transpose(1, 2)  # 2xHxW
     return torch.unsqueeze(base_grid, dim=0).permute(0, 2, 3, 1)  # 1xHxWx2
 
 def warp_perspective(src: torch.Tensor, M: torch.Tensor, dsize: Tuple[int, int],

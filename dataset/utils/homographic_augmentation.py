@@ -27,6 +27,7 @@ def homographic_aug_pipline(img, pts, config, device='cpu'):
     ##
     #warped_image = cv2.warpPerspective(img, homography, tuple(image_shape[::-1]))
     warped_image = kornia.warp_perspective(img, homography, image_shape, align_corners=True)
+    # warped_image = kornia.geometry.warp_perspective(img, homography, image_shape, align_corners=True)
 
     warped_valid_mask = compute_valid_mask(image_shape, homography, config['valid_border_margin'], device=device)
 

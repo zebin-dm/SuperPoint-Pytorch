@@ -10,26 +10,17 @@ from loguru import logger
 from dataset.coco import COCODataset
 from dataset.synthetic_shapes import SyntheticShapes
 from torch.utils.data import DataLoader
-# from model.magic_point import MagicPoint
-# from model.magic_point_dm import MagicPoint
-# from model.magic_point_v1 import MagicPoint
-from model.magic_point_v2 import MagicPoint
-# from model.magic_point_v3 import MagicPoint
-from model.superpoint_bn import SuperPointBNNet
+from model.magic_point_v3 import MagicPoint
 from solver.loss import loss_func
 
 
 def train_eval(model, dataloader, config):
     base_lr = config['solver']['base_lr'] * config['solver']["train_batch_size"]/64
-    print(config['solver']['weight_decay'])
-    print(type(config['solver']['weight_decay']))
     optimizer = torch.optim.AdamW(params=model.parameters(),
                                   lr=base_lr,
                                   weight_decay=config['solver']['weight_decay'],
                                   amsgrad=True)
-    # milestones = [13, ]
-    # gamma = 0.5
-    # scheduler = lr_scheduler.MultiStepLR(optimizer=optimizer, milestones=milestones, gamma=gamma)
+
     train_epoches = int(config['solver']['epoch'] * config['solver']["train_batch_size"]/64)
     try:
         # start training
@@ -42,18 +33,7 @@ def train_eval(model, dataloader, config):
                     data['raw'] = data['warp']
                     data['warp'] = None
                 img_data = data['raw']["img"]
-                optimizer.zero_grad()
                 prob = model(img_data)
-
-                # for superpoint
-                # if config['model']['name'] != 'magicpoint':      # train superpoint
-                #     warp_outputs = model(data['warp'])
-                #     prob, desc, prob_warp, desc_warp = raw_outputs['det_info'], \
-                #                                        raw_outputs['desc_info'], \
-                #                                        warp_outputs['det_info'],\
-                #                                        warp_outputs['desc_info']
-                # else:
-                #     prob = raw_outputs # train magicpoint
 
                 ##loss
                 loss = loss_func(config['solver'], data, prob, desc,
@@ -61,7 +41,7 @@ def train_eval(model, dataloader, config):
 
                 mean_loss.append(loss.item())
                 #reset
-                # model.zero_grad()
+                model.zero_grad()
                 loss.backward()
                 optimizer.step()
 
@@ -73,7 +53,7 @@ def train_eval(model, dataloader, config):
 
             # scheduler.step()
             ##do evaluation
-            if (epoch % 1 == 0):
+            if (epoch % 1 ==0):
                 model.eval()
                 eval_loss = do_eval(model, dataloader['test'], config, device)
                 save_path = os.path.join(config['solver']['save_dir'],
@@ -101,17 +81,7 @@ def do_eval(model, dataloader, config, device):
             data['warp'] = None
 
         img_data = data['raw']["img"]
-        raw_outputs = model(img_data)
-
-        if config['model']['name'] != 'magicpoint':
-            warp_outputs = model(data['warp'])
-            prob, desc, prob_warp, desc_warp = raw_outputs['det_info'], \
-                                               raw_outputs['desc_info'], \
-                                               warp_outputs['det_info'], \
-                                               warp_outputs['desc_info']
-        else:
-            prob = raw_outputs
-
+        prob = model(img_data)
         # compute loss
         loss = loss_func(config['solver'], data, prob, desc,
                          prob_warp, desc_warp, device)
@@ -123,17 +93,12 @@ def do_eval(model, dataloader, config, device):
 
 
 if __name__ == '__main__':
-
-    torch.multiprocessing.set_start_method('spawn')
-
     parser = argparse.ArgumentParser()
     parser.add_argument("config")
-
     args = parser.parse_args()
-
     config_file = args.config
     assert (os.path.exists(config_file))
-    ##
+
     with open(config_file, 'r') as fin:
         config = yaml.safe_load(fin)
 
@@ -160,20 +125,12 @@ if __name__ == '__main__':
                         'test': DataLoader(datasets['test'], batch_size=config['solver']['test_batch_size'], shuffle=False,
                                            num_workers=4,
                                            collate_fn=datasets['test'].batch_collator)}
-    # Make model
-    if config['model']['name'] == 'superpoint':
-        model = SuperPointBNNet(config['model'], device=device, using_bn=config['model']['using_bn'])
-    elif config['model']['name'] == 'magicpoint':
-        model = MagicPoint(nms=config['model']["nms"], bb_name=config['model']['bb_name'])
+
+    model = MagicPoint(nms=config['model']["nms"], bb_name=config['model']['bb_name'])
 
     # Load Pretrained Model
     if os.path.exists(config['model']['pretrained_model']):
         pre_model_dict = torch.load(config['model']['pretrained_model'])
-        # model_dict = model.state_dict()
-        # for k,v in pre_model_dict.items():
-        #     if k in model_dict.keys() and v.shape==model_dict[k].shape:
-        #         model_dict[k] = v
-        # model.load_state_dict(model_dict)
         logger.info("load pretrained model: {}".format(config['model']['pretrained_model']))
         model.load_state_dict(pre_model_dict)
     model.to(device)

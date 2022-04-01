@@ -2,10 +2,38 @@
 import math
 import torch
 import torch.nn as nn
-from torchvision.models import efficientnet
-from torchvision.ops.misc import ConvNormActivation
-from utils.tensor_op import pixel_shuffle
-from utils.debug_utils import AverageTimer
+from model.modules import efficient
+from functools import partial
+from model.modules.ops_misc import Conv2dNormActivation
+
+
+def pixel_shuffle(tensor, scale_factor):
+    """
+    Implementation of pixel shuffle using numpy
+
+    Parameters:
+    -----------
+    tensor: input tensor, shape is [N, C, H, W]
+    scale_factor: scale factor to up-sample tensor
+
+    Returns:
+    --------
+    tensor: tensor after pixel shuffle, shape is [N, C/(r*r), r*H, r*W],
+        where r refers to scale factor
+    """
+    num, ch, height, width = tensor.shape
+    assert ch % (scale_factor * scale_factor) == 0
+
+    new_ch = ch // (scale_factor * scale_factor)
+    new_height = height * scale_factor
+    new_width = width * scale_factor
+
+    tensor = tensor.reshape(
+        [num, new_ch, scale_factor, scale_factor, height, width])
+    # new axis: [num, new_ch, height, scale_factor, width, scale_factor]
+    tensor = tensor.permute(0, 1, 4, 2, 5, 3)
+    tensor = tensor.reshape(num, new_ch, new_height, new_width)
+    return tensor
 
 
 def initialize_weights(model):
@@ -41,58 +69,29 @@ def simple_nms(scores, nms_radius: int):
     return torch.where(max_mask, scores, zeros)
 
 
-# class EfficientBB(nn.Module):
-#     def __init__(self, encoder='b0', pretrained=True):
-#         super(EfficientBB, self).__init__()
-#         efficient_ins = efficientnet.efficientnet_b0(pretrained=pretrained)
-#         self.first_conv = ConvNormActivation(in_channels=1,
-#                                              out_channels=32, 
-#                                              kernel_size=3, 
-#                                              stride=2, 
-#                                              norm_layer=nn.BatchNorm2d,
-#                                              activation_layer=nn.SiLU)
-
-#         self.layer2_3 = efficient_ins.features[1:3]   # H/4
-#         self.layer4 = efficient_ins.features[3]      # H/8
-#         initialize_weights(self.first_conv)
-
-
-#     def forward(self, x):
-#         # print("x shape: {}".format(x.shape))
-#         x = self.first_conv(x)
-#         x_s4 = self.layer2_3(x)
-#         # print("x_s4 shape: {}".format(x_s4.shape))
-#         x_s8 = self.layer4(x_s4)
-#         # print("x_s8 shape: {}".format(x_s8.shape))
-#         return x_s4, x_s8
-
-
-class EfficientB0V1(nn.Module):
-    def __init__(self, pretrained=True):
+class EfficientBB(nn.Module):
+    def __init__(self):
         super().__init__()
-        efficient_ins = efficientnet.efficientnet_b0(pretrained=pretrained)
-        self.first_conv = ConvNormActivation(in_channels=1,
-                                             out_channels=3, 
-                                             kernel_size=3, 
-                                             stride=1, 
-                                             norm_layer=nn.BatchNorm2d,
-                                             activation_layer=nn.SiLU)
+        efficient_ins = efficient.efficientnet_v2_s(pretrained=True, progress=True)
+        self.first_conv = Conv2dNormActivation(in_channels=1,
+                                               out_channels=3, 
+                                               kernel_size=3, 
+                                               stride=1, 
+                                               norm_layer=partial(nn.BatchNorm2d, eps=1e-03),
+                                               activation_layer=nn.SiLU)
 
-        self.layer1_3 = efficient_ins.features[:3]   # H/4
-        self.layer4 = efficient_ins.features[3]      # H/8
+        self.pointfeat = efficient_ins.features[:4]   # H/8
         initialize_weights(self.first_conv)
 
-
     def forward(self, x):
-        x = self.first_conv(x)
-        x_s4 = self.layer1_3(x)
-        x_s8 = self.layer4(x_s4)
-        return x_s4, x_s8
+        out = self.first_conv(x)
+        out = self.pointfeat(out)
+        return out
 
 
 class DetectorHead(torch.nn.Module):
     def __init__(self, input_channel, grid_size):
-        super(DetectorHead, self).__init__()
+        super().__init__()
         self.grid_size = grid_size
         self.convPa = torch.nn.Conv2d(input_channel, 256, 3, stride=1, padding=1)
         self.relu = torch.nn.ReLU(inplace=True)
@@ -104,13 +103,11 @@ class DetectorHead(torch.nn.Module):
         self.softmax = torch.nn.Softmax(dim=1)
 
     def forward(self, x):
-        out = None
         out = self.bnPa(self.relu(self.convPa(x)))
         logits = self.bnPb(self.convPb(out))  #(B,65,H,W)
 
         prob = self.softmax(logits)
         prob = prob[:, :-1, :, :]  # remove dustbin,[B,64,H,W]
-        # Reshape to get full resolution heatmap.
         prob = pixel_shuffle(prob, self.grid_size)  # [B,1,H*8,W*8]
         prob = prob.squeeze(dim=1)#[B,H,W]
         return logits, prob
@@ -121,15 +118,9 @@ class MagicPoint(nn.Module):
     def __init__(self, nms, bb_name, grid_size=8):
         super(MagicPoint, self).__init__()
         self.nms = nms
-        self.bb_name = bb_name
-        if bb_name == "EfficientB0V1":
-            self.backbone = EfficientB0V1()
-            out_chs = 40
-        else:
-            raise ValueError("Backbone not support, {}".format(bb_name))
-
-        self.detector_head = DetectorHead(input_channel=out_chs, grid_size=grid_size)
-        self.average_time = AverageTimer()
+        self.backbone = EfficientBB()
+        self.bb_out_chs = 64
+        self.detector_head = DetectorHead(input_channel=self.bb_out_chs, grid_size=grid_size)
 
     def forward(self, x):
         """ Forward pass that jointly computes unprocessed point and descriptor
@@ -139,52 +130,47 @@ class MagicPoint(nn.Module):
         Output
           semi: Output point pytorch tensor shaped N x 65 x H/8 x W/8.
         """
-        self.average_time.reset()      # TODO remove 
-        x_s4, x_s8 = self.backbone(x)
-        self.average_time.update("backbone")   # TODO remove
-
+        x_s8 = self.backbone(x)
         logits, prob = self.detector_head(x_s8)   # N x H x W
-        self.average_time.update("detector_head")
         if not self.training:
             prob_nms = simple_nms(prob, nms_radius=self.nms)
-            self.average_time.update("nms")
         else:
             prob_nms = None
-        return x_s4, x_s8, logits, prob, prob_nms
+        return x_s8, logits, prob, prob_nms
 
 
 
 
 if __name__ == "__main__":
+    import os
     import yaml
-    import time
+    os.environ["CUDA_VISIBLE_DEVICES"] = "6"
     config_file = "./config/magic_point_syn_train.yaml"
     with open(config_file, 'r') as fin:
         config = yaml.safe_load(fin)
     
     device=torch.device("cuda:0")
-    net = MagicPoint(config['model'])
+    nms = config['model']['nms']
+    net = MagicPoint(nms=nms, bb_name="")
     net = net.to(device)
     net.eval()
-    net.average_time.cuda = True
     in_size=[1, 1, 608, 608]
     with torch.no_grad():
         data = torch.randn(*in_size, device=device)
-        net.average_time.add = False
-        out = net(data)
-        net.average_time.add = True
-
-        run_time = 1000
-        torch.cuda.synchronize()
-        start_time = time.time()
-        for idx in range(run_time):
-            out = net(data)
-        torch.cuda.synchronize()
-        time_interval = time.time() - start_time
-        print(time_interval)
-        net.average_time.print()
+        print(data.shape)
+        x_s8, logits, prob, prob_nms = net(data)
+        print(x_s8.shape)
+        print(prob_nms.shape)        
 
 
+    # model = EfficientBB()
+    # model.eval()
+    # in_size=[1, 1, 608, 608]
+    # data = torch.randn(*in_size)
+    # with torch.no_grad():
+    #     print(data.shape) 
+    #     out = model(data)
+    #     print(out.shape)
 
 
 

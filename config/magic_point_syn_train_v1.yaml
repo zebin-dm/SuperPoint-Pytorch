@@ -54,10 +54,11 @@ model:
     topk: -1
 solver:
     grid_size: 8
-    epoch: 80
+    epoch: 40
     base_lr: 0.001
-    train_batch_size: 64
-    test_batch_size: 64
-    save_dir: './export_efficientv2s_2'
+    train_batch_size: 200
+    test_batch_size: 200
+    save_dir: './export_efficientvb2'
     model_name: 'mg_syn'
-
+    device: "cuda:1"
+    weight_decay: 0.001

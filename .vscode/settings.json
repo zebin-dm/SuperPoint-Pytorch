@@ -7,6 +7,7 @@
         "--disable=missing-class-docstring",
         "--disable=missing-function-docstring",
         "--disable=missing-module-docstring",
+        "--disable=missing-docstring",
         "--disable=no-member",
         "--disable=empty-docstring",
         "--disable=consider-using-f-string",

@@ -55,27 +55,34 @@ def select_top_k(prob, thresh=0, num=300):
     pts = (pts[0][idx], pts[1][idx])
     return pts
 
-if __name__=='__main__':
+if __name__ == '__main__':
 
-    experiments = ['./data/repeatibility/hpatches/magic_cocov2']
-    confidence_thresholds = [0.015, ]
+    experiments = ['/data/zebin/train_cache/lfnet/repeatibility/export_efficientv2s_3']
+    confidence_thresholds = [0.010, ]
 
-    ## show keypoints
-    # for i in range(4):
-    #     for e, thresh in zip(experiments, confidence_thresholds):
-    #         path = os.path.join(e, str(i) + ".npz")
-    #         d = np.load(path)
-    #         img = np.round(d['img']*255).astype(np.int).astype(np.uint8)
-    #         warp_img = np.round(d['warp_img']*255).astype(np.int).astype(np.uint8)
+    # show keypoints
+    save_path = "./save_path"
+    os.makedirs(save_path, exist_ok=True)
+    # show keypoints
+    for i in range(4):
+        for e, thresh in zip(experiments, confidence_thresholds):
+            path = os.path.join(e, str(i) + ".npz")
+            d = np.load(path)
+            img = np.round(d['img']*255).astype(np.uint8)
+            # img = np.transpose(img, (1, 2, 0)).copy()
+            warp_img = np.round(d['warp_img']*255).astype(np.uint8)
+            # warp_img = np.transpose(warp_img, (1, 2, 0)).copy()
+            points1 = select_top_k(d['prob'], thresh=thresh)
+            print("im1 shape: {}".format(img.shape))
+            im1 = draw_keypoints(img, points1, (0, 255, 0))
+            points2 = select_top_k(d['warp_prob'], thresh=thresh)
+            im2 = draw_keypoints(warp_img, points2, (0, 255, 0))
 
-    #         points1 = select_top_k(d['prob'], thresh=thresh)
-    #         im1 = draw_keypoints(img, points1, (0, 255, 0))/255.
+            im1_path = os.path.join(save_path, "{}_img.jpg".format(i))
+            im2_path = os.path.join(save_path, "{}_wrap.jpg".format(i))
+            cv2.imwrite(im1_path, im1)
+            cv2.imwrite(im2_path, im2)
 
-    #         points2 = select_top_k(d['warp_prob'], thresh=thresh)
-    #         im2 = draw_keypoints(warp_img, points2, (0, 255, 0))/255.
-
-    #         plot_imgs([im1, im2], ylabel=e, dpi=200, cmap='gray',
-    #                   titles=[str(len(points1[0])) + ' points', str(len(points2[0])) + ' points'])
 
     ## compute repeatability
     for exp, thresh in zip(experiments, confidence_thresholds):

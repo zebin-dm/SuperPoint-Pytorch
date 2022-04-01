@@ -1,6 +1,7 @@
 #-*-coding:utf-8-*-
 
 import collections
+from collections import abc
 
 
 def parse_primitives(names, all_primitives):
@@ -21,7 +22,8 @@ def dict_update(d, u):
         The updated dictionary.
     """
     for k, v in u.items():
-        if isinstance(v, collections.Mapping):
+        if isinstance(v, abc.Mapping):
+        # if isinstance(v, collections.Mapping):
             d[k] = dict_update(d.get(k, {}), v)
         else:
             d[k] = v

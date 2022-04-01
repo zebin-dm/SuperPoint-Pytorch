@@ -3,7 +3,6 @@ import os
 import glob
 from copy import deepcopy
 import torch
-from torchvision import transforms
 from torch.utils.data import DataLoader
 from utils.params import dict_update
 from dataset.utils.homographic_augmentation import homographic_aug_pipline
@@ -38,8 +37,8 @@ class COCODataset(torch.utils.data.Dataset):
         image_types = ['jpg', 'jpeg', 'bmp', 'png']
         samples = []
         for im_path, lb_path in zip(image_paths, label_paths):
-            for it in image_types:
-                temp_im = glob.glob(os.path.join(im_path, '*.{}'.format(it)))
+            for ext in image_types:
+                temp_im = glob.glob(os.path.join(im_path, '*.{}'.format(ext)))
                 if lb_path is not None:
                     temp_lb = [os.path.join(lb_path, os.path.basename(imp)+'.npy') for imp in temp_im]
                 else:
@@ -56,8 +55,7 @@ class COCODataset(torch.utils.data.Dataset):
         data_path = self.samples[idx]#raw image path of processed image and point path
         img = cv2.imread(data_path['image'], 0)#Gray image
         img = cv2.resize(img, self.resize[::-1])
-        pts = None if data_path['label'] is None else np.load(data_path['label'])#N*2,yx
-        pts = pts.astype(np.float32)
+        pts = np.load(data_path['label']).astype(np.float32)         #N*2,yx
 
         # init data dict
         img_tensor = torch.as_tensor(img.copy(), dtype=torch.float, device=self.device)

@@ -9,7 +9,8 @@ from utils.tensor_op import pixel_shuffle_inv
 
 def loss_func(config, data, prob, desc=None, prob_warp=None, desc_warp=None, device='cpu'):
 
-    x_s4, x_s8, logits, prob_no_nms, prob_nms = prob
+    # x_s4, x_s8, logits, prob_no_nms, prob_nms = prob
+    x_s8, logits, prob_no_nms, prob_nms = prob
     det_loss = detector_loss(data['raw']['kpts_map'],
                              logits,
                              data['raw']['mask'],

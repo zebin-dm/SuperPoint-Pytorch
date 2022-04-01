@@ -1,7 +1,7 @@
 data:
     name: 'hpatches' #hpatches
-    data_dir: './data/hpatches' #./data/hpatches
-    export_dir: './data/repeatibility/hpatches/magic_cocov2'
+    data_dir: '/data/zebin/data/hpatches-sequences/hpatches-sequences-release' #./data/hpatches
+    export_dir: '/data/zebin/train_cache/lfnet/repeatibility/export_efficientv2s_3'
     alteration: 'all'  # 'all' 'i' 'v'
     preprocessing:
         resize: [240,320]
@@ -21,8 +21,8 @@ data:
             patch_ratio: 0.5
 model:
     name: 'magicpoint' #superpoint
-    bb_name: "EfficientBBV2"       # "VGGBackboneBN", "VGGBackbone", "EfficientBB"
-    pretrained_model: './export_coco_v2/mg_coco_0023_0.594.pth'
+    bb_name: ""       # "VGGBackboneBN", "VGGBackbone", "EfficientBB"
+    pretrained_model: '/data/zebin/lfnet/SuperPoint-Pytorch/export_efficientv2s_3/mg_syn_0198_0.076.pth'
     grid_size: 8
     det_head: #detector head
         feat_in_dim: 128
